@@ -1,4 +1,5 @@
 import os
+from io import BytesIO
 import requests
 import pandas as pd
 
@@ -7,7 +8,7 @@ API = os.getenv("API_URL", "http://localhost:8081")
 USUARIO = os.getenv("API_USER", "admin")
 SENHA = os.getenv("API_PASSWORD", "admin123")
 
-def gerar_relatorio():
+def gerar_relatorio() -> BytesIO:
     try:
         # 1. Fazer login e guardar o token com validação de status
        # print("Autenticando na API...")
@@ -29,7 +30,7 @@ def gerar_relatorio():
         emprestimos = response_emp.json()
         if not emprestimos:
             print("Nenhum empréstimo cadastrado. Nada pra relatar.")
-            return
+            return BytesIO()
 
         # 3. Transformar o JSON numa tabela
         tabela = pd.json_normalize(emprestimos)
@@ -64,12 +65,14 @@ def gerar_relatorio():
         # Filtra apenas colunas que realmente existem no DataFrame para evitar erros
         colunas_existentes = [c for c in colunas_desejadas if c in atrasados.columns]
 
-        with pd.ExcelWriter("relatorio_emprestimos.xlsx") as arquivo:
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as arquivo:
             atrasados[colunas_existentes].to_excel(arquivo, sheet_name="Atrasados", index=False)
             if not por_tipo.empty:
                 por_tipo.to_excel(arquivo, sheet_name="Emprestados por tipo")
 
-        print(f"Sucesso! Relatório gerado: {len(atrasados)} empréstimo(s) atrasado(s).")
+        buffer.seek(0)
+        return buffer
 
     except requests.exceptions.RequestException as e:
         print(f"Erro de comunicação com a API: {e}")
